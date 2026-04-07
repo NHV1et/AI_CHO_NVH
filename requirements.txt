@@ -1,0 +1,16 @@
+llama-index-core
+llama-index-llms-ollama
+llama-index-embeddings-huggingface
+streamlit
+numpy
+pandas
+scipy
+torch
+onnxruntime
+matplotlib
+pyswarms
+psutil
+func_timeout
+llama-index-readers-file
+torchvision
+llama-index 
