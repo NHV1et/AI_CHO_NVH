@@ -24,7 +24,7 @@ from llama_index.core.node_parser import SimpleNodeParser
 def ollama_init(ollama_model="mistral", api_url="http://localhost:11434"):
     """
         initialize Ollama
-    """    
+    """
     
     # Local model (Mistral) run on local link http://localhost:11434
     

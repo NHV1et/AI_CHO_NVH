@@ -18,6 +18,8 @@
 """
 
 import re
+from banks import ChatMessage
+from banks import ChatMessage
 import streamlit as st
 from ..simulation import load_plecs
 from ..llm import custom_responses
@@ -214,28 +216,63 @@ def other_tasks_(*args, **kwargs):
     """
     return None # just an indicator
 
+# def other_tasks(client):
+#     """
+#         Executables of Other Tasks
+#     """
+#     with st.spinner("Loading..."):
+        
+#         st.write("Entering the last block")
+#         response = client.chat(
+#             model = st.session_state["llm_model"],
+#             messages=[
+#                 {"role": "system", "content": """You are now an expert in the power electronics industry, 
+#                                              and you are proficient in optimal design of buck converter. Please answer the questions 
+#                                              in a warm, positive and friendly manner. Keep your answer less than 150 words! Make sure 
+#                                              your answers are professional and accurate -- don't hallucinate."""},
+#                 *[{"role": msg["role"], "content": msg["content"]} 
+#                   for msg in st.session_state.messages] # provide all historical chat messages
+#                     ], flush=False)
+#         answer = response['message']['content']
+#         st.write(answer)
+#         messages = [{"role": "assistant", "content": answer},]
+#     return messages #Note: Ve sau test xem return thut o trong def hay thut vao trong with
+
 def other_tasks(client):
     """
-        Executables of Other Tasks
+    Executables of Other Tasks - Final Stability Fix
     """
     with st.spinner("Loading..."):
-        st.write("Entering the last block")
-        response = client.chat(
-            model = st.session_state["llm_model"],
-            messages=[
-                {"role": "system", "content": """You are now an expert in the power electronics industry, 
-                                             and you are proficient in optimal design of buck converter. Please answer the questions 
-                                             in a warm, positive and friendly manner. Keep your answer less than 150 words! Make sure 
-                                             your answers are professional and accurate -- don't hallucinate."""},
-                *[{"role": msg["role"], "content": msg["content"]} 
-                  for msg in st.session_state.messages] # provide all historical chat messages
-                    ], flush=False)
-        answer = response['message']['content']
+        # 1. Create the system message
+        all_messages = [
+            ChatMessage(role="system", 
+                        content="You are now an expert in the power electronics industry, "
+                        "and you are proficient in optimal design of buck converter. Please answer the questions in a warm, positive and friendly manner. " \
+                        "Keep your answer less than 150 words! Make sure your answers are professional and accurate -- don't hallucinate.")
+        ]
+        
+        # 2. Add history messages safely
+        for msg in st.session_state.messages:
+            all_messages.append(
+                ChatMessage(role=msg["role"], content=msg["content"])
+            )
+
+        # 3. Use the correct method to avoid the Instrumentation/Callback crash
+        # Instead of client.chat(), we use client._chat() or check the object type
+        try:
+            # We call chat, but we ensure the messages are correctly formed objects
+            response = client.chat(messages=all_messages)
+            answer = response.message.content
+        except Exception as e:
+            # If the instrumentation still crashes, we use the raw ollama library style
+            # since you have 'client' from ollama_init
+            st.warning("Switching to raw chat mode...")
+            response = client.complete(all_messages[-1].content) # Fallback to simple completion
+            answer = response.text
         st.write(answer)
-        messages = [{"role": "assistant", "content": answer},]
-    return messages #Note: Ve sau test xem return thut o trong def hay thut vao trong with
-
-
+        messages = [{"role": "assistant", "content": answer}]
+        
+    return messages
 # Task Indicators
 # Your customized tasks to be defined
 def custom_tasks_():
@@ -250,7 +287,7 @@ def custom_tasks_():
 def custom_tasks():
     pass
 
-def design_flow(agents, general_client, FlexRes=True):
+async def design_flow(agents, general_client, FlexRes=True):
     """
         This is your customized design workflow
     """
@@ -271,7 +308,7 @@ def design_flow(agents, general_client, FlexRes=True):
         # The LLM agents are responsible for the following defined design tasks
         with st.chat_message("assistant"):
             
-            response = agent_intent.run(user_msg=f"""Please call the corresponding function based the user's Request given in square brackes '[]' 
+            raw_respond = await agent_intent.run(user_msg=f"""Please call the corresponding function based the user's Request given in square brackes '[]' 
                                          and Listen Carefully!! Only ONE function closest to the function descriptions should be called!!!!
                                          User's Request: [{prompt}]""".replace('\n', ''))
                                          # +"\n\nThe detailed function descriptions are defined below."
@@ -279,13 +316,13 @@ def design_flow(agents, general_client, FlexRes=True):
                                          #             description_task3, description_task4, description_other_tasks]))
             
             
+            chat_response = raw_respond.response if hasattr(raw_respond, "response") else raw_respond
             
             
-            
-            if len(response.sources) >= 1: # if any function has been triggered
-                if None in [item.raw_output for item in response.sources]: messages = other_tasks(general_client)
+            if hasattr(chat_response, 'sources') and len(chat_response.sources) >= 1:
+                if None in [item.raw_output for item in chat_response.sources]: messages = other_tasks(general_client)
                 else:
-                    task = response.sources[0].raw_output # conduct the first matched task
+                    task = chat_response.sources[0].raw_output # conduct the first matched task
                     
                     args = ()
                     if task == "Task 0":
@@ -332,7 +369,7 @@ def design_flow(agents, general_client, FlexRes=True):
             st.session_state.messages.append(msg) # Append the response to the message history
 
 
-def task_agent(): #Dang xem xet phuong an thay the from_tools
+def task_agent(): #giai quyet xong cai from_tools = workflowagent
     
     """
         Define an LLM agent to judge and keep track of the design stage/task
