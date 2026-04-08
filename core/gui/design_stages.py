@@ -19,20 +19,16 @@
 
 import re
 import streamlit as st
-
 from ..simulation import load_plecs
 from ..llm import custom_responses
 from ..optim import optimizers
 from ..llm.llm import get_msg_history
 from ..model_zoo.pann_dab import train_dab
-
+import asyncio
+from llama_index.core.agent.workflow import AgentWorkflow
 from llama_index.core.tools import FunctionTool
-#from llama_index.agent.openai import OpenAIAgent
-#from llama_index.llms.openai import OpenAI
 from llama_index.llms.ollama import Ollama
-from llama_index.core.agent import ReActAgent
-
-
+#from llama_index.core.agent import ReActAgent
 
 
 # Task Indicators
@@ -254,9 +250,6 @@ def custom_tasks_():
 def custom_tasks():
     pass
 
-
-
-
 def design_flow(agents, general_client, FlexRes=True):
     """
         This is your customized design workflow
@@ -278,12 +271,16 @@ def design_flow(agents, general_client, FlexRes=True):
         # The LLM agents are responsible for the following defined design tasks
         with st.chat_message("assistant"):
             
-            response = agent_intent.chat(f"""Please call the corresponding function based the user's Request given in square brackes '[]' 
+            response = agent_intent.run(user_msg=f"""Please call the corresponding function based the user's Request given in square brackes '[]' 
                                          and Listen Carefully!! Only ONE function closest to the function descriptions should be called!!!!
                                          User's Request: [{prompt}]""".replace('\n', ''))
                                          # +"\n\nThe detailed function descriptions are defined below."
                                          # +"\n".join([description_task0, description_task1, description_task2,
-                                         #             description_task3, description_task4, description_other_tasks])
+                                         #             description_task3, description_task4, description_other_tasks]))
+            
+            
+            
+            
             
             if len(response.sources) >= 1: # if any function has been triggered
                 if None in [item.raw_output for item in response.sources]: messages = other_tasks(general_client)
@@ -335,7 +332,8 @@ def design_flow(agents, general_client, FlexRes=True):
             st.session_state.messages.append(msg) # Append the response to the message history
 
 
-def task_agent():
+def task_agent(): #Dang xem xet phuong an thay the from_tools
+    
     """
         Define an LLM agent to judge and keep track of the design stage/task
     """
@@ -350,10 +348,12 @@ def task_agent():
 
     llm = Ollama(model="mistral", base_url="http://localhost:11434", request_timeout=120)
 
-    agent = ReActAgent.from_tools(
-        [init_design_tool, recommend_modulation_tool, evalualte_dab_tool, 
-         simulation_verification_tool, pe_gpt_introduction_tool, train_pann_tool, 
-         other_tasks_tool], llm=llm, verbose=True)
+    agent = AgentWorkflow.from_tools_or_functions(
+        tools_or_functions=[init_design_tool, recommend_modulation_tool, evalualte_dab_tool, 
+                            simulation_verification_tool, pe_gpt_introduction_tool, train_pann_tool, 
+                            other_tasks_tool], 
+                            llm=llm, 
+                            verbose=True)
     
     return agent
 

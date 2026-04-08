@@ -11,12 +11,18 @@
 """
 
 # from core.model_zoo.pann_dab_vars import *
+import nest_asyncio
+import asyncio
+nest_asyncio.apply()
 from core.gui.gui import build_gui, init_states, display_history
 from core.gui.design_stages import design_flow, task_agent
 from core.llm.llm import ollama_init, rag_load
 
-
-
+try:
+    loop = asyncio.get_running_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
 # To run the PE-GPT, please run the following: 
 # streamlit run main.py
@@ -37,12 +43,15 @@ if __name__ == "__main__":
     with open('core/knowledge/prompts/prompt.txt', 'r') as file:
         system_prompt = file.read()
     index0 = rag_load("core/knowledge/kb/database", llm_model, temperature=temperature, 
-                       chunk_size=chunk_size, system_prompt=system_prompt)
-    chat_engine0 = index0.as_chat_engine(chat_mode="context",similarity_top_k=top_k)
+                       chunk_size=chunk_size)
+    chat_engine0 = index0.as_chat_engine(chat_mode="context",
+                                         similarity_top_k=top_k,
+                                         system_prompt=system_prompt)
     # AGENT 1 specialized in modulation recommendation
     index1 = rag_load("core/knowledge/kb/database1", llm_model, temperature=temperature, 
-                       chunk_size=chunk_size, system_prompt=system_prompt)
-    chat_engine1 = index1.as_chat_engine(similarity_top_k=top_k)
+                       chunk_size=chunk_size)
+    chat_engine1 = index1.as_chat_engine(similarity_top_k=top_k,
+                                         system_prompt=system_prompt)
     # AGENT 2 for self introduction
     index2 = rag_load("core/knowledge/kb/introduction", llm_model, temperature=temperature, 
                        chunk_size=chunk_size)
@@ -50,6 +59,7 @@ if __name__ == "__main__":
     
     
     # Define an LLM agent to judge and keep track of the design stage/task
+    
     agent_intent = task_agent()
     
     
@@ -65,7 +75,10 @@ if __name__ == "__main__":
 
 
     # run the PE-GPT engine to conduct the design workflow
+    # agents = [chat_engine0, chat_engine1, chat_engine2, agent_intent]
+    # design_flow(agents, client, FlexRes=FlexRes)
     agents = [chat_engine0, chat_engine1, chat_engine2, agent_intent]
+
     design_flow(agents, client, FlexRes=FlexRes)
     
     

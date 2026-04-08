@@ -69,8 +69,8 @@ def rag_load(database_folder, llm_model,
         documents = SimpleDirectoryReader(database_folder).load_data()
         index = VectorStoreIndex.from_documents(documents)
         # set the system prompt for the index
-        if system_prompt is not None:
-            index.set_system_prompt(system_prompt)
+        # if system_prompt is not None:
+        #     index.set_system_prompt(system_prompt)
     return index
 
 
